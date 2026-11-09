@@ -34,6 +34,12 @@
 - **用微信扫码打开很慢**：请用 iPhone 相机扫码，或者复制链接到 Safari 里打开。
 - **准星方向反了或者太灵敏**：在 ⌖ 菜单里调「左右反向」「上下反向」和「灵敏度」。准星慢慢飘了，就点一下「回中」。
 
+## 卸载
+
+1. 点菜单栏的 **⌖ → 退出 PhoneGun**（它在运行时没法删除）；
+2. 打开「应用程序」文件夹，把 PhoneGun 拖进废纸篓；
+3. 想清理得更干净的话，可以再删掉 `~/Library/Application Support/PhoneGun`（网页扳机用的证书），并在 **系统设置 → 隐私与安全性 → 辅助功能** 里把 PhoneGun 移除。
+
 ## 自己编译
 
 用 Xcode 打开 `PhoneGun.xcodeproj`，运行 `PhoneGunMac`。工程里还有一个可选的原生 iPhone 扳机 App `PhoneGunTrigger`，震动反馈比网页版更好。
