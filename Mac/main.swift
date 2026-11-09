@@ -11,28 +11,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var trustTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 从安装盘（DMG）里直接打开时，系统会把 App 放到临时路径运行，辅助功能权限对它不生效，图标就打不了
+        // 从安装盘（DMG）里直接打开时，系统会把 App 放到临时路径运行，权限对它不生效，图标就打不了
         if Self.runningFromDiskImage {
             WebLog.write("启动：从安装盘运行 \(Bundle.main.bundlePath)")
             askToMoveToApplications()
             return
         }
 
-        // 需要“辅助功能”权限才能拿到 Dock / 桌面图标位置
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        trusted = AXIsProcessTrustedWithOptions(opts)
-        WebLog.write("启动：路径=\(Bundle.main.bundlePath) 辅助功能=\(trusted)")
+        // 需要“设备控制和数据访问”权限（旧版 macOS 叫“辅助功能”）才能拿到 Dock / 桌面图标位置
+        trusted = AXIsProcessTrusted()
+        WebLog.write("启动：路径=\(Bundle.main.bundlePath) 设备控制权限=\(trusted)")
         if !trusted {
-            statusLine = "还没有辅助功能权限，打不了图标"
-            // 用户在系统设置里打开权限后，自动接上，不用重启
-            trustTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] t in
+            statusLine = "还没有「\(Self.permissionName)」权限，打不了图标"
+            // 用户在系统设置里打开开关后，自动接上，不用重启
+            trustTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
                 guard let self, AXIsProcessTrusted() else { return }
                 t.invalidate()
                 self.trusted = true
-                self.statusLine = "辅助功能已打开，可以开打了"
-                WebLog.write("辅助功能权限已授予")
+                self.statusLine = "权限已打开，可以开打了"
+                WebLog.write("设备控制权限已授予")
                 self.game.scanner.rescan()
+                self.showReady()
             }
+            DispatchQueue.main.async { self.askForPermission() }
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -59,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
         a.messageText = "请先把 PhoneGun 拖进「应用程序」文件夹"
-        a.informativeText = "现在是直接从安装盘里打开的，这样 macOS 不会给它辅助功能权限，打不了桌面上的图标。\n\n在安装窗口里，把 PhoneGun 图标拖到右边的「应用程序」文件夹，然后从「应用程序」里打开 PhoneGun。"
+        a.informativeText = "现在是直接从安装盘里打开的，这样 macOS 不会给它「\(Self.permissionName)」权限，打不了桌面上的图标。\n\n在安装窗口里，把 PhoneGun 图标拖到右边的「应用程序」文件夹，然后从「应用程序」里打开 PhoneGun。"
         a.addButton(withTitle: "打开「应用程序」文件夹")
         a.addButton(withTitle: "退出")
         if a.runModal() == .alertFirstButtonReturn {
@@ -68,8 +69,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    /// 这个权限在不同 macOS 版本里名字不一样（比如 macOS 27 中文叫“设备控制和数据访问”，以前叫“辅助功能”），
+    /// 直接从系统设置自己的翻译里读，保证和用户看到的一致
+    static let permissionName: String = {
+        let fallback = "辅助功能"
+        guard let b = Bundle(path: "/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex") else { return fallback }
+        let langs = Bundle.preferredLocalizations(from: b.localizations, forPreferences: Locale.preferredLanguages)
+        if #available(macOS 15.4, *) {
+            let name = b.localizedString(forKey: "ACCESSIBILITY", value: fallback, table: "Localizable",
+                                         localizations: langs.map { Locale.Language(identifier: $0) })
+            return name.isEmpty ? fallback : name
+        }
+        return fallback
+    }()
+
+    /// 先用一个说人话的弹窗讲清楚要开哪个开关，再把 PhoneGun 加进系统列表并直接打开那一页
+    private func askForPermission() {
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "还差一步：打开一个开关"
+        a.informativeText = "PhoneGun 需要「\(Self.permissionName)」权限，才能知道桌面和 Dock 上的图标在哪儿。\n\n点「去打开」后会直接跳到对应的设置页，在列表里找到 PhoneGun，把它右边的开关打开就行。打开后马上生效，不用重启。"
+        a.addButton(withTitle: "去打开")
+        a.addButton(withTitle: "稍后")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        openAccessibilitySettings()
+    }
+
     @objc private func openAccessibilitySettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        // 带 prompt 调一次，系统才会把 PhoneGun 放进列表里（默认关着），用户只需要打开开关
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(opts)
+        let urls = ["x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility",
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]
+        for u in urls { if let url = URL(string: u), NSWorkspace.shared.open(url) { break } }
+    }
+
+    private func showReady() {
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "可以开打了 🎯"
+        a.informativeText = "点菜单栏右上角的 ⌖，用 iPhone 相机扫里面的二维码，手机就变成枪了。"
+        a.addButton(withTitle: "好")
+        a.runModal()
     }
 
     @objc private func relaunch() {
@@ -85,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let st = NSMenuItem(title: statusLine, action: nil, keyEquivalent: ""); st.isEnabled = false
         menu.addItem(st)
         if !trusted {
-            menu.addItem(item("⚠️ 点这里打开辅助功能权限（打开后就能打了）", #selector(openAccessibilitySettings)))
+            menu.addItem(item("⚠️ 点这里打开「\(Self.permissionName)」权限（打开后就能打了）", #selector(openAccessibilitySettings)))
         } else {
             let n = game.scanner.targets.count
             let tc = NSMenuItem(title: "已识别目标：\(n) 个", action: nil, keyEquivalent: "")

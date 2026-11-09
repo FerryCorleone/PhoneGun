@@ -52,6 +52,8 @@ final class IconSource {
 
     /// 截取屏幕上一块区域（辅助功能坐标），排除本 App 的窗口，并裁成圆角方块
     static func captureScreen(_ axRect: CGRect) async -> NSImage? {
+        // 没有“录屏”权限就不截图（否则游戏中途会弹系统权限框），退回到 App 自己的图标
+        guard CGPreflightScreenCaptureAccess() else { return nil }
         guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return nil }
         let primaryH = await MainActor.run { NSScreen.screens.first?.frame.height ?? 0 }
         // 找包含该区域的显示器
