@@ -1,0 +1,57 @@
+name: PhoneGun
+options:
+  bundleIdPrefix: com.jinluo.phonegun
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: Z4Y48C92K5
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  PhoneGunMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Mac
+      - path: Shared
+    info:
+      path: Mac/Info.plist
+      properties:
+        CFBundleDisplayName: PhoneGun
+        LSUIElement: true
+        NSAppleEventsUsageDescription: 用于识别桌面图标
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jinluo.phonegun.mac
+        PRODUCT_NAME: PhoneGun
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: YES
+  PhoneGunTrigger:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+      - path: Shared
+    info:
+      path: iOS/Info.plist
+      properties:
+        CFBundleDisplayName: 扳机
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSLocalNetworkUsageDescription: 连接电脑上的 PhoneGun，把瞄准和开火发过去
+        NSBonjourServices: [_phonegun._udp]
+        NSMotionUsageDescription: 用陀螺仪控制电脑上的准星
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jinluo.phonegun.trigger
+        PRODUCT_NAME: Trigger
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
