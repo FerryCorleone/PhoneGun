@@ -9,7 +9,7 @@ settings:
     DEVELOPMENT_TEAM: Z4Y48C92K5
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1"
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   PhoneGunMac:
@@ -30,7 +30,7 @@ targets:
         PRODUCT_NAME: PhoneGun
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_APP_SANDBOX: NO
-        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: YES
   PhoneGunTrigger:
     type: application

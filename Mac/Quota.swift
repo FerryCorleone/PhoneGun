@@ -12,7 +12,7 @@ final class Quota {
     }
 
     private(set) var status: [Agent: Status] = [.codex: Status(), .antigravity: Status()]
-    var enabled = true
+    var enabled = false   // 默认关闭：打中 Codex / Antigravity 时真实烧额度，需要在菜单里手动打开
     var maxConcurrent = 3
     var onChange: (() -> Void)?
 
