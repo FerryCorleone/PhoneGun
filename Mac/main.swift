@@ -33,7 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.game.scanner.rescan()
                 self.showReady()
             }
-            DispatchQueue.main.async { self.askForPermission() }
+            if UserDefaults.standard.bool(forKey: "openSettingsOnLaunch") {
+                UserDefaults.standard.removeObject(forKey: "openSettingsOnLaunch")
+                DispatchQueue.main.async { self.openAccessibilitySettings() }
+            } else {
+                DispatchQueue.main.async { self.askForPermission() }
+            }
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -88,11 +93,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
         a.messageText = "还差一步：打开一个开关"
-        a.informativeText = "PhoneGun 需要「\(Self.permissionName)」权限，才能知道桌面和 Dock 上的图标在哪儿。\n\n点「去打开」后会直接跳到对应的设置页，在列表里找到 PhoneGun，把它右边的开关打开就行。打开后马上生效，不用重启。"
+        a.informativeText = "PhoneGun 需要「\(Self.permissionName)」权限，才能知道桌面和 Dock 上的图标在哪儿。\n\n点「去打开」后会直接跳到对应的设置页，在列表里找到 PhoneGun，把它右边的开关打开就行。打开后马上生效，不用重启。\n\n如果 PhoneGun 的开关本来就是开着的，但还是弹出这个提示，那是旧版本留下的记录，点「开关已经开着了」修复。"
         a.addButton(withTitle: "去打开")
+        a.addButton(withTitle: "开关已经开着了")
         a.addButton(withTitle: "稍后")
-        guard a.runModal() == .alertFirstButtonReturn else { return }
-        openAccessibilitySettings()
+        switch a.runModal() {
+        case .alertFirstButtonReturn: openAccessibilitySettings()
+        case .alertSecondButtonReturn: resetPermission()
+        default: break
+        }
+    }
+
+    /// 系统列表里的开关属于旧签名的 PhoneGun（比如自己编译过的版本），对现在这个 App 不生效：
+    /// 清掉 PhoneGun 自己的这条记录后重启，系统会重新登记，用户再打开一次开关即可
+    @objc private func resetPermission() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        p.arguments = ["reset", "Accessibility", Bundle.main.bundleIdentifier ?? "com.jinluo.phonegun.mac"]
+        try? p.run(); p.waitUntilExit()
+        WebLog.write("重置设备控制权限记录：退出码 \(p.terminationStatus)")
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "已清掉旧记录"
+        a.informativeText = "PhoneGun 会重新打开。接着在跳出来的设置页里，把 PhoneGun 的开关再打开一次就好了。"
+        a.addButton(withTitle: "好")
+        a.runModal()
+        UserDefaults.standard.set(true, forKey: "openSettingsOnLaunch")
+        relaunch()
     }
 
     @objc private func openAccessibilitySettings() {
@@ -127,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(st)
         if !trusted {
             menu.addItem(item("⚠️ 点这里打开「\(Self.permissionName)」权限（打开后就能打了）", #selector(openAccessibilitySettings)))
+            menu.addItem(item("开关已经开着了但还是不行？点这里修复", #selector(resetPermission)))
         } else {
             let n = game.scanner.targets.count
             let tc = NSMenuItem(title: "已识别目标：\(n) 个", action: nil, keyEquivalent: "")
